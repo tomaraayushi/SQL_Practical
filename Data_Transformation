@@ -1,0 +1,215 @@
+-- Clean adn Transform the data
+-- Customer orders data
+CREATE TEMP TABLE customer_orders_temp AS(
+  SELECT
+    order_id,
+    customer_id,
+    pizza_id,
+    CASE
+      WHEN exclusions = '' THEN NULL  
+      WHEN exclusions = 'null' THEN NULL
+      ELSE exclusions
+      END AS cleaned_exc,
+    CASE
+      WHEN extras = '' THEN NULL  
+      WHEN extras = 'NaN' THEN NULL
+      ELSE extras
+      END AS cleaned_ext,
+    order_time
+  FROM
+    `myprojects14.sql_project1.customer_orders`
+);
+
+-- Runner orders
+CREATE OR REPLACE TEMP TABLE runner_orders_temp AS(
+  SELECT
+    order_id,
+    runner_id,
+    CASE
+      WHEN pickup_time = 'null' THEN NULL  
+      ELSE pickup_time
+    END AS pickup_time,
+    CASE
+      WHEN distance = 'null' THEN NULL  
+      ELSE REGEXP_REPLACE(distance, '[a-z]+', '')
+    END AS distance_km,
+    CASE
+      WHEN duration = 'null' THEN NULL 
+      ELSE REGEXP_REPLACE(duration, '[a-z]+', '')
+    END AS duration_mins,
+    CASE
+      WHEN cancellation = '' THEN NULL  
+      WHEN cancellation = 'null' THEN NULL  
+      ELSE cancellation
+    END AS cancellation
+  FROM `myprojects14.sql_project1.runner_orders`
+);
+
+-- Change the data types in runner_orders
+CREATE OR REPLACE TEMP TABLE runner_final_temp AS(
+  SELECT
+    order_id,
+    runner_id,
+    pickup_time,
+    CAST(distance_km AS FLOAT64) AS dist_km,
+    CAST(duration_mins AS INT64) AS duration_min,
+    cancellation
+  FROM
+    `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_runner_orders_temp`
+);
+
+-- Explore the data and analyze it
+
+-- PIZZA METRICS
+-- How many pizzas were ordered?
+SELECT 
+  COUNT(pizza_id) AS total_pizza_ordered
+FROM 
+  `myprojects14.sql_project1.customer_orders`;
+
+-- How many unique customer orders were made?
+SELECT
+  COUNT(DISTINCT order_id) unique_orders
+FROM
+  `myprojects14.sql_project1.customer_orders`;
+
+-- How many successful orders were delivered by each runner?
+SELECT
+  runner_id,
+  COUNT(order_id) AS order_delivered
+FROM 
+  `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_runner_final_temp`
+WHERE
+  duration_min IS NOT NULL
+GROUP BY
+  runner_id
+ORDER BY
+  runner_id;
+
+-- How many of each type of pizza was delivered?
+SELECT
+  cust_t.pizza_id,
+  COUNT(cust_t.pizza_id) AS pizza_delivered
+FROM
+  `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_runner_final_temp`  AS runner_t
+INNER JOIN 
+  `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_customer_orders_temp`  AS cust_t
+ON
+  runner_t.order_id = cust_t.order_id
+WHERE
+  runner_t.duration_min IS NOT NULL
+GROUP BY
+  cust_t.pizza_id
+ORDER BY 
+  cust_t.pizza_id;
+
+-- How many Vegetarian and Meatlovers were ordered by each customer?
+WITH pizza_ordered AS(
+  SELECT
+    p.pizza_name,
+    c.order_id,
+  FROM
+    `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_customer_orders_temp` c
+  INNER JOIN  
+    `myprojects14.sql_project1.pizza_names` p
+  ON
+    c.pizza_id = p.pizza_id
+  ORDER BY
+    p.pizza_name
+)
+
+SELECT
+  cust.customer_id,
+  SUM(CASE WHEN pizza_o.pizza_name = 'Vegetarian' THEN 1 ELSE 0 END) AS veg,
+  SUM(CASE WHEN pizza_o.pizza_name = 'Meat Lovers' THEN 1 ELSE 0 END) AS meatlovers
+FROM
+  `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_customer_orders_temp` cust
+INNER JOIN
+  pizza_ordered pizza_o
+ON
+  cust.order_id = pizza_o.order_id
+GROUP BY
+  cust.customer_id
+ORDER BY 
+  cust.customer_id;
+
+-- What was the maximum number of pizzas delivered in a single order?
+SELECT
+  order_id,
+  COUNT(*) AS num_of_pizza_ordered
+FROM
+  `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_customer_orders_temp`
+GROUP BY
+  order_id
+ORDER BY 
+  num_of_pizza_ordered DESC
+LIMIT 1;
+
+-- For each customer, how many delivered pizzas had at least 1 change and how many had no changes?
+SELECT
+  cust_t.customer_id,
+  SUM(CASE WHEN cust_t.cleaned_exc IS NOT NULL OR cust_t.cleaned_ext IS NOT NULL THEN 1 ELSE 0 END) AS customize_pizza,
+  SUM(CASE WHEN cust_t.cleaned_exc IS NULL OR cust_t.cleaned_ext IS NULL THEN 1 ELSE 0 END) AS noncustomize_pizza
+FROM
+  `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_customer_orders_temp` cust_t
+INNER JOIN 
+  `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_runner_final_temp` runner_t
+ON
+  cust_t.order_id = runner_t.order_id
+WHERE 
+  runner_t.duration_min IS NOT NULL
+GROUP BY
+cust_t.customer_id
+ORDER BY
+  cust_t.customer_id;
+
+-- How many pizzas were delivered that had both exclusions and extras?
+SELECT
+  SUM(CASE WHEN c.cleaned_exc IS NOT NULL AND c.cleaned_ext IS NOT NULL THEN 1 ELSE 0 END) AS customize_pizza_delivered
+FROM
+  `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_customer_orders_temp` c
+INNER JOIN 
+  `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_runner_final_temp` r
+ON
+  c.order_id = r.order_id
+WHERE
+  r.duration_min IS NOT NULL;
+
+-- What was the total volume of pizzas ordered for each hour of the day?
+SELECT
+  COUNT(order_id) AS total_pizza_ordered,
+  EXTRACT(HOUR FROM order_time) AS hour
+FROM
+  `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_customer_orders_temp`
+GROUP BY
+  hour;
+
+-- What was the volume of orders for each day of the week?
+SELECT
+  COUNT(order_id) AS total_pizza_ordered,
+  EXTRACT(DAYOFWEEK FROM order_time) AS weekday
+FROM 
+  `myprojects14._09b15e34ad6701e85f1d6526299c5c1f4d883a2a._03a4bcc0_1b3b_4024_a05a_8addd9bbd926_customer_orders_temp`
+GROUP BY
+  weekday;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

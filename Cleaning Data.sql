@@ -168,7 +168,72 @@ ORDER BY company;
 ROLLBACK;
 
 
+-- netflix_da_cleaning
+-- Create a new database and drop if any
+DROP DATABASE IF EXISTS netflix;
 
+CREATE DATABASE netflix;
+
+-- Create tables
+-- Creating table raw_titles
+CREATE TABLE raw_titles(
+	index INTEGER,
+	id VARCHAR(15),
+	title TEXT,
+	type VARCHAR(5),
+	release_year INTEGER,
+	age_certification VARCHAR(10),
+	runtime INTEGER,
+	genres VARCHAR(100),
+	production_countries VARCHAR(50),
+	seasons FLOAT,
+	imdb_id VARCHAR(15),
+	imdb_score FLOAT,
+	imdb_votes FLOAT
+);
+
+-- Create table raw_credits
+CREATE TABLE raw_credits(
+	index INTEGER,
+	person_id INTEGER,
+	id VARCHAR(15),
+	name TEXT,
+	character TEXT,
+	role VARCHAR(8)
+);
+
+-- Load the raw data in tables
+COPY raw_credits
+FROM 'D:\postgre_data\Netflix_DA\raw_credits.csv'
+WITH (FORMAT CSV, HEADER);
+
+COPY raw_titles
+FROM 'D:\postgre_data\Netflix_DA\raw_titles.csv'
+WITH (FORMAT CSV, HEADER);
+
+-- Explore the data
+-- Check dataset size
+SELECT COUNT(*) FROM raw_titles;
+
+SELECT COUNT(*) FROM raw_credits;
+
+-- Check data types
+SELECT
+	COLUMN_NAME, DATA_TYPE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE 
+	TABLE_NAME = 'raw_titles';
+
+SELECT
+	COLUMN_NAME, DATA_TYPE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE
+	TABLE_NAME = 'raw_credits';
+	
+-- Remove redundant columns
+ALTER TABLE raw_titles DROP COLUMN index;
+ALTER TABLE raw_titles DROP COLUMN imdb_id;
+ALTER TABLE raw_credits DROP COLUMN index;
 
 
 

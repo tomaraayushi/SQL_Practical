@@ -7,7 +7,7 @@ Welcome to the **Beginner's Guide to Storytelling with Data** repository! This r
 "Practical SQL" is a comprehensive guide designed to teach SQL from the ground up. It covers fundamental concepts, practical techniques, and best practices for writing SQL queries. The book is ideal for beginners and those looking to strengthen their SQL skills through hands-on problem-solving.
 
 For more information about the book and to get your copy, you can visit the following link:
-[Practical SQL Book](https://pragprog.com/titles/bksqla/practical-sql/)
+[Practical SQL Book](https://practicalsql.com/)
 
 ## Repository Contents
 
